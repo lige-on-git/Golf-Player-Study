@@ -7,19 +7,22 @@ Here is a link to access remote repo from your local computer (https://docs.gith
 
 Here are simple steps in case you're new to git (based on my very limited experience - not the best way to use git):
 
-1. To initalize your local git repo for the first time
+1: To initalize your local git repo for the first time
 $ git clone https://github.com/lige-on-git/Golf-Player-Study.git
 
-2. To switch branch to dev
+2: To switch branch to dev
+
 $ git branch -a
 $ git checkout dev
 $ git branch
 
-3. To make changes to a branch (e.g. dev) on your local repo, first make sure you are inside that branch using step 2
+3: To make changes to a branch (e.g. dev) on your local repo, first make sure you are inside that branch using step 2
+
 $ git add *
 $ git commit -m "whatever changes you made"
 
-4. Before pushing any changes to a branch (say dev) in the remote repo on gitihub, always make sure you have updated other people's work from the remote repo
+4: Before pushing any changes to a branch (say dev) in the remote repo on gitihub, always make sure you have updated other people's work from the remote repo
+
 $ git fetch https://github.com/lige-on-git/Golf-Player-Study.git dev
 $ git rebase dev
 (if conflict, solve manually in your working text editor or IDE)
@@ -28,7 +31,7 @@ $ git pull https://github.com/lige-on-git/Golf-Player-Study.git dev
 $ git add *
 $ git commit -m "whatever conflicts you solved"
 
-5. Now, it's time to push your work to the target remote branch (say dev) - MAKE SURE you are on the same local brach (e.g. dev)
+5: Now, it's time to push your work to the target remote branch (say dev) - MAKE SURE you are on the same local brach (e.g. dev)
 
 The first time to push:
 $ git push -u origin dev
