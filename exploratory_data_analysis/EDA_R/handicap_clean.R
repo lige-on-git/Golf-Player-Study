@@ -89,5 +89,19 @@ print(data.100k[order(dateadjusted), .(golferid, newhandicap, oldhandicap, oldha
 print(data.100k[order(dateadjusted), .(golferid, newhandicap, oldhandicap, oldhandicap.filled, shifted, dateadjusted)][golferid==791279940], nrow=200)
 
 
+# -don't even need to create <shifted> and <oldhandicap.filled> columns
+# -below, call shift() function inside mapply(); make in-place replacement within <oldhandicap> column (the preferred way of using data.table!!)
+data.100k[order(dateadjusted), oldhandicap := mapply(replace.NaOld, oldhandicap, shift(newhandicap)), by=golferid]
+
+
+## ________________________________________________________________
 ## Export data
+if("shifted" %in% colnames(data.100k)){  # remove redundant columns if they've been created during experiment
+  data.100k[, shifted := NULL]
+}
+if("oldhandicap.filled" %in% colnames(data.100k)){
+  data.100k[, oldhandicap.filled := NULL]
+}
+print(colnames(data.100k))
+
 fwrite(data.100k, "./downloaded-data/cleaned_data/100K golferid cleaned.csv")
