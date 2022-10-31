@@ -37,7 +37,7 @@ get_field_names <- function(table_name, PK=T, FK=T){
 }
 
 ## not in
-`%notin%` <- Negate(`%in%`)
+`%notin%` <- Negate(`%in%`)  # better to use !(a %in% b) instead
 
 ## Golfer table
 golfer_path = "./downloaded-data/tblgolfer.csv"
@@ -59,4 +59,7 @@ valid_membership_fields = list(PK.1='membershipid',
 
 ## Handicap table (100K golferid groups)
 handicap_100k_path = "./downloaded-data/cleaned_data/100K golferid groups.csv"
+
+## Handicap cleaned
+handicap_cleaned_path = "./downloaded-data/cleaned_data/100K golferid cleaned.csv"
 
