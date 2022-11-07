@@ -132,7 +132,6 @@ avg.par.changes <- function(DT){
 avg.par.changes(golfers[golferid==791053708])
 golfers[golferid==791053708 & (!par==73), par]
 
-
 newhandicap.change <- golfers[order(dateadjusted), 
                             .(average_newhandicap = mean(newhandicap, na.rm=TRUE),  # skip null values
                              sd_newhandicap = sd(newhandicap, na.rm=TRUE),
@@ -163,9 +162,6 @@ newhandicap.change <- golfers[order(dateadjusted),
 newhandicap.change[, ':=' (newhandicap_change_ratio = newhandicap_change/oldest_newhandicap,
                           newhandicap_change_amp_ratio = abs(newhandicap_change/newhandicap_amplitude))]
 
-# tomorrow change sd columns with na value to 0
-# playinghandicap seems to only appear after 2013 - so we discard records before 2013 to only consider recent years
-
 head(newhandicap.change)
 newhandicap.change[golferid==792168569 & year==1981]
 golfers[golferid==792168569 & year==1981]
@@ -176,11 +172,56 @@ golfers[golferid==789609155 & year==2000]
 newhandicap.change[golferid %in% c(792517184,792087835,789609155), head(.SD), by=golferid]
 
 fwrite(newhandicap.change, "newhandicap_change_temp.csv")
+newhandicap.change <- fread("newhandicap_change_temp.csv")
+
+# change sd columns with NA value (since only a single record found) to 0
+feature.means <- c('average_newhandicap', 'average_nettscore', 'average_score', 'average_par', 
+                   'average_playinghandicap', 'average_scratchrating', 'average_sloperating')
+feature.sds <- c('sd_newhandicap', 'sd_nettscore', 'sd_score', 'sd_par', 'sd_playinghandicap',
+                 'sd_scratchrating', 'sd_sloperating')
+
+# pass a column name as string (https://stackoverflow.com/questions/12391950/select-assign-to-data-table-when-variable-names-are-stored-in-a-character-vect)
+
+# - select using get() and mget() - no need to add .() when select using mget()
+newhandicap.change[is.na(get(feature.sds[7])) & !(is.na(get(feature.means[7]))), mget(feature.means[1:2])]  
+
+# - select using 'dot dot' (..) prefix
+colname1 <- feature.sds[7]  # must pass as a single variable
+newhandicap.change[is.na(get(feature.sds[7])) & !(is.na(get(feature.means[7]))), ..colname1]
+
+# - in-place creating a new column or editing old values (can't use get() or mget())
+colname2 <- 'new_column'
+newhandicap.change[, (colname2) := 2]
+newhandicap.change[, ..colname2]
+newhandicap.change[, (colname2) := NULL]
+
+# let's get back to work...
+newhandicap.change <- fread("newhandicap_change_temp.csv")  # read again
+
+for (i in 1:length(feature.means)){
+  feature.mean <- feature.means[i]
+  feature.sd <- feature.sds[i]  # if mean isn't null but sd is null (sd of a single value is NA is R)
+  newhandicap.change[is.na(get(feature.sds[i])) & !(is.na(get(feature.means[i]))), (feature.sd) := 1]
+}
+
+newhandicap.change[, mget(c(feature.means, feature.sds))]  # sanity check
 
 
-unique(golfers[,golferid])
-golfers[golferid==792168569, (par)]
-golfers[golferid==792168569, (year)]
+
+
+
+
+
+
+# playinghandicap seems to only appear after 2013 - so we discard records before 2013 to only consider recent years
+
+
+
+
+
+# unique(golfers[,golferid])
+# golfers[golferid==792168569, (par)]
+# golfers[golferid==792168569, (year)]
 
 
 
