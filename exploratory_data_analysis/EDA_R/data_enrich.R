@@ -5,19 +5,8 @@ golfers <- fread(handicap_cleaned_path)
 head(golfers)
 unique(golfers[,scorestatus])
 
-# calculate number of rounds
-golfers <- golfers[on='golferid', golfers[scorestatus=="O",.N,by=c('golferid')]]
-setnames(golfers, old='N', new='approved_rounds')
-gc()
-
-golfers <- golfers[on='golferid', golfers[scorestatus!="O",.N,by=c('golferid')]]
-setnames(golfers, old='N', new='nonapproved_rounds')
-gc()
-
-golfers[, all_rounds := .(approved_rounds + nonapproved_rounds)]
-golfers[,.(golferid, approved_rounds, nonapproved_rounds, all_rounds)]
-
-# DON'T USE THIS IN THE FUTURE: https://stackoverflow.com/questions/12786335/why-is-as-date-slow-on-a-character-vector
+# DON'T USE THIS IN THE FUTURE - as.Date() function is way too slow!!
+# https://stackoverflow.com/questions/12786335/why-is-as-date-slow-on-a-character-vector
 extract.time <- function(time.stamp, date.type){
   # to extract year or month from a time stamp
   # <type>: "m" for month and "Y" for year
@@ -26,21 +15,38 @@ extract.time <- function(time.stamp, date.type){
   as.integer(strftime(new.date, time.format))
 }
 
-# find the longest gap
 golfers[, month := lapply(dateadjusted, FUN=extract.time, "m")]
 golfers[, year := lapply(dateadjusted, FUN=extract.time, "Y")]
+
+fwrite(golfers, "./temp_data/golfer_gap_temp.csv")  # need to restart R session to recover speed...
+golfers <- fread("./temp_data/golfer_gap_temp.csv")
 golfers[, .(golferid, month, year)]
 
-fwrite(golfers, "temp.csv")
-golfers <- fread("temp.csv")
+# golfers[, ':=' (all_rounds=NULL, nonapproved_rounds=NULL, approved_rounds=NULL, approved_round=NULL, i.N=NULL)]
+# head(golfers)
 
-months.played <- golfers[, month.adj := .(month+12*year)]
-months.played <- months.played[order(year, month), .SD, by=golferid]  # don't call <order> when in-place creating a new column 
-months.played[, gap := .(month.adj - shift(month.adj)), by=golferid]
+
+# calculate number of rounds
+golfers <- golfers[on=c('golferid', 'year'), golfers[scorestatus=="O",.N,by=c('golferid', 'year')]]
+setnames(golfers, old='N', new='approved_rounds')
+gc()
+
+golfers <- golfers[on=c('golferid', 'year'), golfers[scorestatus!="O",.N,by=c('golferid', 'year')]]
+setnames(golfers, old='N', new='nonapproved_rounds')
+gc()
+
+golfers[, all_rounds := .(approved_rounds + nonapproved_rounds)]
+head(golfers[,.(golferid, approved_rounds, nonapproved_rounds, all_rounds, month, year)])
+
+
+# find the longest gap - this even works if not grouping by <year> thanks to <month.adj>
+golfers[, month.adj := .(month+12*year)]                        # don't call <order> when in-place creating a new column 
+months.played <- golfers[order(year, month), .SD, by=golferid]  # because after order(), a new table is created
+months.played[, gap := .(month.adj - shift(month.adj)), by=c('golferid', 'year')]
 
 head(months.played)  # sanity checks
 months.played[gap>3]
-months.played[golferid %in% c(789979119,139632850) & year %in% c(2006, 2007), .SD, by=golferid]
+months.played[golferid %in% c(789979119,139632850) & year %in% c(2006, 2007), .SD, by=c('golferid', 'year')]
 months.played[golferid==791424820 & year==2018][order(year)]
 
 longest.gap <- function(DT){
@@ -48,12 +54,14 @@ longest.gap <- function(DT){
   indices <- c(1, which(gaps > 3), length(gaps))  # must add the first and last indices!!
   max(indices - shift(indices, fill=0))
 }
-longest.round <- months.played[, .(longest_round = longest.gap(.SD)), by=golferid]
+longest.round <- months.played[, .(longest_round = longest.gap(.SD)), by=c('golferid', 'year')]
 longest.round[golferid==789608883]
+months.played[golferid==789608883, .(year, month, all_rounds, gap)][order(year, month)]  # sanity check
 longest.round[golferid==789609155]
+longest.round[golferid==789609155, sum(longest_round)]
 
-golfers <- golfers[on='golferid', longest.round]; gc()
-golfers[, ':=' (i.N = NULL, month.adj = NULL)]
+golfers <- golfers[on=c('golferid', 'year'), longest.round]; gc()
+golfers[, month.adj := NULL]
 head(golfers)
 
 fwrite(golfers, "./downloaded-data/cleaned_data/100K golferid enriched.csv")
@@ -79,8 +87,8 @@ fwrite(responses, "./downloaded-data/cleaned_data/100K golferid responses.csv")
 
 ## _____________________________________________________________________________________________
 ## check if isninehole is an important feature to influence the response
-responses <- fread("./downloaded-data/cleaned_data/100K golferid responses.csv")
-golfers <- fread("./downloaded-data/cleaned_data/100K golferid enriched.csv")
+responses <- fread(isactive_response_path)
+golfers <- fread(handicap_enriched_path)
 head(golfers)
 names(golfers)
 
@@ -171,10 +179,11 @@ golfers[golferid==789609155 & year==2000]
 
 newhandicap.change[golferid %in% c(792517184,792087835,789609155), head(.SD), by=golferid]
 
-fwrite(newhandicap.change, "newhandicap_change_temp.csv")
-newhandicap.change <- fread("newhandicap_change_temp.csv")
+fwrite(newhandicap.change, "./temp_data/newhandicap_change_temp.csv")
+newhandicap.change <- fread("./temp_data/newhandicap_change_temp.csv")
 
-# change sd columns with NA value (since only a single record found) to 0
+## change sd columns with NA value (since only a single record found) to 0
+
 feature.means <- c('average_newhandicap', 'average_nettscore', 'average_score', 'average_par', 
                    'average_playinghandicap', 'average_scratchrating', 'average_sloperating')
 feature.sds <- c('sd_newhandicap', 'sd_nettscore', 'sd_score', 'sd_par', 'sd_playinghandicap',

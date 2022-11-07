@@ -63,3 +63,9 @@ handicap_100k_path = "./downloaded-data/cleaned_data/100K golferid groups.csv"
 ## Handicap cleaned
 handicap_cleaned_path = "./downloaded-data/cleaned_data/100K golferid cleaned.csv"
 
+## Handicap table with aggregated table
+handicap_enriched_path = "./downloaded-data/cleaned_data/100K golferid enriched.csv"
+
+## response - if a player is active in a year
+isactive_response_path = "././downloaded-data/cleaned_data/100K golferid responses.csv"
+
