@@ -18,7 +18,7 @@ extract.time <- function(time.stamp, date.type){
 golfers[, month := lapply(dateadjusted, FUN=extract.time, "m")]
 golfers[, year := lapply(dateadjusted, FUN=extract.time, "Y")]
 
-fwrite(golfers, "./temp_data/golfer_gap_temp.csv")  # need to restart R session to recover speed...
+fwrite(golfers, "./temp_data/golfer_gap_temp.csv")  # add a checkpoint; need to restart R session to recover speed...
 golfers <- fread("./temp_data/golfer_gap_temp.csv")
 golfers[, .(golferid, month, year)]
 
@@ -27,16 +27,21 @@ golfers[, .(golferid, month, year)]
 
 
 # calculate number of rounds
-golfers <- golfers[on=c('golferid', 'year'), golfers[scorestatus=="O",.N,by=c('golferid', 'year')]]
+# here, we put the golfers table on the "left" to apply left join, so the joined table keeps all rows of the golfers table
+# https://www.w3schools.com/sql/sql_join.asp
+golfers <- golfers[scorestatus=="O", .N, by=c('golferid', 'year')][on=c('golferid', 'year'), golfers]
 setnames(golfers, old='N', new='approved_rounds')
 gc()
+nrow(golfers)
 
-golfers <- golfers[on=c('golferid', 'year'), golfers[scorestatus!="O",.N,by=c('golferid', 'year')]]
+golfers <- golfers[scorestatus!="O", .N, by=c('golferid', 'year')][on=c('golferid', 'year'), golfers]  # only select .N to join
 setnames(golfers, old='N', new='nonapproved_rounds')
 gc()
+nrow(golfers)
 
 golfers[, all_rounds := .(approved_rounds + nonapproved_rounds)]
 head(golfers[,.(golferid, approved_rounds, nonapproved_rounds, all_rounds, month, year)])
+nrow(unique(golfers[, .(golferid, year)]))  # check the number of unique (golferid, year) pairs
 
 
 # find the longest gap - this even works if not grouping by <year> thanks to <month.adj>
@@ -92,6 +97,8 @@ golfers <- fread(handicap_enriched_path)
 head(golfers)
 names(golfers)
 
+nrow(golfers)
+
 responses_and_isninehole <- responses[unique(golfers[, .(isninehole), by=c('golferid', 'year')]), 
                                       on=c('golferid', '')][!is.na(is_active)]
 
@@ -99,10 +106,15 @@ base.model <- glm(is_active~isninehole, family=binomial, data=responses_and_isni
 summary(base.model)
 
 
-## Add more aggregated features 
+## Add more aggregated features
+
+# - first flatten golfers table so each row is a golfer
+unique(golfers[, .(golferid, year)])  # 147342 unique (golferid, year pair)
 golfers.agg <- unique(golfers[, .(approved_rounds, nonapproved_rounds, longest_round), by=c('golferid', 'year')])
 golfers.agg[, approved_round_ratio := .(approved_rounds/(approved_rounds + nonapproved_rounds))]
-head(golfers.agg)
+golfers.agg[order(year), year_from_beginner := .(year - head(year,1)), by=golferid]
+golfers.agg[order(year), the_ith_year2play := 1:.N]  # implicitly create "index" within each group
+head(golfers.agg,20)
 
 # latest new_handicap score - the oldest score
 # average and SD of new_handicap (GA Handicap)
@@ -139,6 +151,8 @@ avg.par.changes <- function(DT){
 }
 avg.par.changes(golfers[golferid==791053708])
 golfers[golferid==791053708 & (!par==73), par]
+
+newhandicap.change
 
 newhandicap.change <- golfers[order(dateadjusted), 
                             .(average_newhandicap = mean(newhandicap, na.rm=TRUE),  # skip null values
@@ -179,7 +193,7 @@ golfers[golferid==789609155 & year==2000]
 
 newhandicap.change[golferid %in% c(792517184,792087835,789609155), head(.SD), by=golferid]
 
-fwrite(newhandicap.change, "./temp_data/newhandicap_change_temp.csv")
+fwrite(newhandicap.change, "./temp_data/newhandicap_change_temp.csv")  # add a checkpoint
 newhandicap.change <- fread("./temp_data/newhandicap_change_temp.csv")
 
 ## change sd columns with NA value (since only a single record found) to 0
@@ -216,9 +230,9 @@ for (i in 1:length(feature.means)){
 newhandicap.change[, mget(c(feature.means, feature.sds))]  # sanity check
 
 
-
-
-
+## 
+newhandicap.change[, .(golferid, year)]
+golfers.agg[, .(golferid, year)]
 
 
 
