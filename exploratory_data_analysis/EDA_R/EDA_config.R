@@ -60,12 +60,14 @@ valid_membership_fields = list(PK.1='membershipid',
 ## Handicap table (100K golferid groups)
 handicap_100k_path = "./downloaded-data/cleaned_data/100K golferid groups.csv"
 
-## Handicap cleaned
+## Handicap cleaned (if possible filling up empty handicap score history)
 handicap_cleaned_path = "./downloaded-data/cleaned_data/100K golferid cleaned.csv"
 
-## Handicap table with aggregated table
+## Handicap table with aggregated features (a golfer id can have multiple rows)
 handicap_enriched_path = "./downloaded-data/cleaned_data/100K golferid enriched.csv"
 
-## response - if a player is active in a year
-isactive_response_path = "././downloaded-data/cleaned_data/100K golferid responses.csv"
+## Handicap table with more aggregated features (a golfer id only a single row)
+handicap_aggregated_1_path = "./downloaded-data/cleaned_data/100K golferid aggregated part1.csv"
 
+## Response - if a player is active in a year
+isactive_response_path = "././downloaded-data/cleaned_data/100K golferid responses.csv"

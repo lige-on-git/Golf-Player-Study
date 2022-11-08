@@ -31,11 +31,13 @@ golfers[, .(golferid, month, year)]
 # https://www.w3schools.com/sql/sql_join.asp
 golfers <- golfers[scorestatus=="O", .N, by=c('golferid', 'year')][on=c('golferid', 'year'), golfers]
 setnames(golfers, old='N', new='approved_rounds')
+golfers[is.na(approved_rounds), approved_rounds := 0]  # using 0 to fill NA values caused by left join 
 gc()
 nrow(golfers)
 
 golfers <- golfers[scorestatus!="O", .N, by=c('golferid', 'year')][on=c('golferid', 'year'), golfers]  # only select .N to join
 setnames(golfers, old='N', new='nonapproved_rounds')
+golfers[is.na(nonapproved_rounds), nonapproved_rounds := 0]
 gc()
 nrow(golfers)
 
@@ -61,13 +63,17 @@ longest.gap <- function(DT){
 }
 longest.round <- months.played[, .(longest_round = longest.gap(.SD)), by=c('golferid', 'year')]
 longest.round[golferid==789608883]
-months.played[golferid==789608883, .(year, month, all_rounds, gap)][order(year, month)]  # sanity check
+months.played[golferid==789608883, .(year, month, all_rounds, gap)][order(year, month)]  # sanity checks
 longest.round[golferid==789609155]
 longest.round[golferid==789609155, sum(longest_round)]
 
-golfers <- golfers[on=c('golferid', 'year'), longest.round]; gc()
-golfers[, month.adj := NULL]
+nrow(longest.round); nrow(golfers)  # still left join longest.round table to golfers table
+
+golfers <- longest.round[on=c('golferid', 'year'), golfers]; gc()
+golfers[, month.adj := NULL]  # remove redundant column
 head(golfers)
+nrow(golfers)
+nrow(unique(golfers[, .(golferid, year)]))  # check the number of unique (golferid, year) pairs
 
 fwrite(golfers, "./downloaded-data/cleaned_data/100K golferid enriched.csv")
 
@@ -79,8 +85,8 @@ responses <- golfers[!year==2022, .(round_num = .N), by=c('golferid', 'year')]
 is.active <- function(curr_year, DT, threshold=0){
   # check if the next year is active (round_num not empty in the input table, or greater than a threshold)
   next_year <- curr_year + 1
-  is.played <- length(DT[year==next_year, round_num])
-  if(is.played){
+  is.played <- length(DT[year==next_year, round_num])  # check if the "next year" exists in the DT; use length() to check logical(0)
+  if(is.played){  # same as Python: if(0) is same as if(FALSE) 
     return(TRUE)  # inactive
   }else{
     return(FALSE)   # active
@@ -96,7 +102,6 @@ responses <- fread(isactive_response_path)
 golfers <- fread(handicap_enriched_path)
 head(golfers)
 names(golfers)
-
 nrow(golfers)
 
 responses_and_isninehole <- responses[unique(golfers[, .(isninehole), by=c('golferid', 'year')]), 
@@ -106,12 +111,18 @@ base.model <- glm(is_active~isninehole, family=binomial, data=responses_and_isni
 summary(base.model)
 
 
+## _____________________________________________________________________________________________
 ## Add more aggregated features
+responses <- fread(isactive_response_path)
+golfers <- fread(handicap_enriched_path)
 
 # - first flatten golfers table so each row is a golfer
-unique(golfers[, .(golferid, year)])  # 147342 unique (golferid, year pair)
+unique(golfers[, .(golferid, year)])  # 300090 unique (golferid, year) pair
 golfers.agg <- unique(golfers[, .(approved_rounds, nonapproved_rounds, longest_round), by=c('golferid', 'year')])
 golfers.agg[, approved_round_ratio := .(approved_rounds/(approved_rounds + nonapproved_rounds))]
+golfers.agg[is.na(approved_round_ratio)]  # check invalid rows
+
+# add number of years played
 golfers.agg[order(year), year_from_beginner := .(year - head(year,1)), by=golferid]
 golfers.agg[order(year), the_ith_year2play := 1:.N]  # implicitly create "index" within each group
 head(golfers.agg,20)
@@ -150,9 +161,7 @@ avg.par.changes <- function(DT){
   length(which(! par.hist == shift(par.hist, fill=initial.par))) # num of changes
 }
 avg.par.changes(golfers[golferid==791053708])
-golfers[golferid==791053708 & (!par==73), par]
-
-newhandicap.change
+golfers[golferid==791053708 & (!par==73), par]  # tests
 
 newhandicap.change <- golfers[order(dateadjusted), 
                             .(average_newhandicap = mean(newhandicap, na.rm=TRUE),  # skip null values
@@ -183,8 +192,10 @@ newhandicap.change <- golfers[order(dateadjusted),
 
 newhandicap.change[, ':=' (newhandicap_change_ratio = newhandicap_change/oldest_newhandicap,
                           newhandicap_change_amp_ratio = abs(newhandicap_change/newhandicap_amplitude))]
+newhandicap.change[is.na(newhandicap_change_amp_ratio) & newhandicap_amplitude==0, 
+                   newhandicap_change_amp_ratio:=0]  # remove NA caused by dividing 0
 
-head(newhandicap.change)
+head(newhandicap.change)  # sanity checks
 newhandicap.change[golferid==792168569 & year==1981]
 golfers[golferid==792168569 & year==1981]
 
@@ -219,7 +230,7 @@ newhandicap.change[, ..colname2]
 newhandicap.change[, (colname2) := NULL]
 
 # let's get back to work...
-newhandicap.change <- fread("newhandicap_change_temp.csv")  # read again
+newhandicap.change <- fread("./temp_data/newhandicap_change_temp.csv")  # read again
 
 for (i in 1:length(feature.means)){
   feature.mean <- feature.means[i]
@@ -230,26 +241,18 @@ for (i in 1:length(feature.means)){
 newhandicap.change[, mget(c(feature.means, feature.sds))]  # sanity check
 
 
-## 
+## Join two aggregated feature tables
 newhandicap.change[, .(golferid, year)]
-golfers.agg[, .(golferid, year)]
+golfers.agg[, .(golferid, year)]  # check: they have the same number of rows
+names(newhandicap.change)
+names(golfers.agg)
+
+golfers.agg <- golfers.agg[on=c('golferid', 'year'), newhandicap.change]
+fwrite(golfers.agg, "./downloaded-data/cleaned_data/100K golferid aggregated part1.csv")
 
 
-
-# playinghandicap seems to only appear after 2013 - so we discard records before 2013 to only consider recent years
-
-
-
-
-
-# unique(golfers[,golferid])
-# golfers[golferid==792168569, (par)]
-# golfers[golferid==792168569, (year)]
-
-
-
-
-
-
-#
-
+# Some checks: - most of the playinghandicap NA values are before 2013 
+#              - so we may discard records before 2013 to only consider recent years
+golfers.agg <- fread(handicap_aggregated_1_path)
+golfers.agg[is.na(average_playinghandicap) & year>2013, .(year, average_playinghandicap)]
+golfers.agg[is.na(average_playinghandicap) & year<=2013, .(year, average_playinghandicap)]
