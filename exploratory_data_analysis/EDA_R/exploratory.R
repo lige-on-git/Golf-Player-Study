@@ -122,10 +122,26 @@ sample <- sample(c(TRUE, FALSE), nrow(full.xy.table), replace=TRUE, prob=c(0.7,0
 train.xy  <- full.xy.table[sample, ]; nrow(train.xy)
 test.xy   <- full.xy.table[!sample, ]; nrow(test.xy)
 
-# - fit model
+# - fit binomial model
 names(test.xy)
-train.bin <- glm(as.factor(is_active) ~ . -golferid -year, 
-                 family=binomial, data=test.xy, na.action=na.exclude)
+train.bin <- glm(as.factor(is_active) ~ . -golferid -year -total_num_rounds -round_num -
+                   newhandicap_change - scoretype1_ratio - scoretype2_ratio - scoretype3_ratio -
+                   scoretype4_ratio - newhandicap_change_ratio, 
+                 family=binomial, data=train.xy, na.action=na.omit)
 
 summary(train.bin)
 
+# - make prediction
+raw.prediction <- predict(train.bin, test.xy, type="response")
+test.xy[, response_prob := raw.prediction]
+test.xy[, response_prob := (response_prob > 0.5)]  # DT[col > 0.5] - select rows;
+                                                   # DT[, col > 0.5] - assign T/F to all rows !! 
+
+# - test accuracy (https://en.wikipedia.org/wiki/Precision_and_recall)
+nrow(test.xy[(is_active & response_prob) | (is_active==F & response_prob==F)]) / nrow(test.xy)  # overall accuracy
+
+nrow(test.xy[is_active & response_prob]) / nrow(test.xy)  # True positive (hit)
+nrow(test.xy[(is_active==F & response_prob==F)]) / nrow(test.xy)  # True negative (correct rejection) - VERY LOW
+
+nrow(test.xy[(is_active==F & response_prob==T)]) / nrow(test.xy)  # False positive (false alarm)
+nrow(test.xy[(is_active==T & response_prob==F)]) / nrow(test.xy)  # False negative (miss)
